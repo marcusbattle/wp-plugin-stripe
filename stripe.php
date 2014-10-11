@@ -38,15 +38,6 @@ class Stripe {
 		add_action( 'admin_menu', array( $this, 'build_pages' ) );
 		add_action( 'init', array( $this, 'save_pages' ) );
 
-		$account = $this->tokens->api('account');
-
-		if ( isset( $account->error ) ) {
-		
-			wp_redirect( $redirect_to . '?error=' . urlencode( $account->error->message ) );
-			exit;
-
-		}
-
 	}
 
 	public function build_pages() {
