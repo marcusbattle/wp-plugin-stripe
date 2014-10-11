@@ -3,23 +3,37 @@
 class Stripe_API {
 
 	private $test_secret_key, $live_secret_key;
-	public $test_public_key, $live_public_key;
+	public $test_public_key, $live_public_key, $is_live;
 
 	public $object;
 
 	public function __construct() {
 
-		$this->test_secret_key = 'sk_0GPS3IYXhOF1TDkZTb9S7GaHznsZA';
+		$this->test_secret_key = get_option('stripe_test_secret_key');
+		$this->test_public_key = get_option('stripe_test_public_key');
+		$this->live_secret_key = get_option('stripe_live_secret_key');
+		$this->live_public_key = get_option('stripe_live_public_key');
+
+		$this->is_live = get_option( 'stripe_mode' );
 
 	}
 
 	public function create( $post_args = array() ) { 
 
+		$id = isset( $post_args['id'] ) ? $post_args['id'] : '';
+
+		if ( $id ) {
+			$endpoint = 'customers' . '/' . $id . '/' . $this->object;
+			unset( $post_args['id'] );
+		} else {
+			$endpoint = $this->object;
+		}
+
 		$request_args = array(
 			'body' => $post_args
 		);
 
-		return self::api( $this->object, $request_args, 'POST' );
+		return self::api( $endpoint, $request_args, 'POST' );
 
 	}
 
@@ -83,10 +97,15 @@ class Stripe_API {
 
 		$url = 'https://api.stripe.com/v1/' . $endpoint;
 
+		if ( $this->is_live )
+			$key = $this->live_secret_key;
+		else
+			$key = $this->test_secret_key;
+
 		$request_args = array(
 			'method' => $method,
 			'headers' => array(
-				'Authorization' => 'Basic ' . base64_encode( $this->test_secret_key . ':' . '' )
+				'Authorization' => 'Basic ' . base64_encode( $key . ':' . '' )
 			)
 		);
 
