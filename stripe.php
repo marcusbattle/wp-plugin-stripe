@@ -109,7 +109,7 @@ class Stripe {
 		// Check to see if amount, description and token are preent
 		if ( isset( $_POST ) && ! empty( $_POST ) ) {
 
-			$redirect_to = home_url( $_SERVER['REQUEST_URI']);
+			$redirect_to = home_url( $_SERVER['REQUEST_URI'] );
 
 			$stripe_token = isset( $_POST['stripeToken'] ) ? $_POST['stripeToken'] : '';
 			$stripe_token_type = isset( $_POST['stripeType'] ) ? $_POST['stripeType'] : '';
@@ -122,6 +122,8 @@ class Stripe {
 			$amount = isset( $_POST['amount'] ) ? $_POST['amount'] : '';
 
 			$email = isset( $_POST['stripeEmail'] ) ? $_POST['stripeEmail'] : '';
+
+			$user_meta = isset( $_POST['user_meta'] )? $_POST['user_meta'] : array();
 
 			// Validate fields before processing transaction
 			if ( empty( $stripe_token ) || empty( $stripe_token_type ) || empty( $amount ) || empty( $email ) )
@@ -144,37 +146,26 @@ class Stripe {
 
 		}
 
-		// Check to see if user exists in WordPress
-		$wp_user = get_user_by( 'email', $email );
 
-		// If user exists, get their Stripe Customer ID
-		if ( $wp_user )
-			$stripe_user_id = get_post_meta( $wp_user->ID, 'stripe_user_id', true );
+		// If no stripe user present, check to see if one exists in Stripe			
+		$stripe_user = $this->customers->get_by_email( $email );
 
+		if ( ! $stripe_user ) {
 
-		// If no stripe user present, check to see if one exists in Stripe
-		if ( ! $stripe_user_id ) {
-			
-			$stripe_user = $this->customers->get_by_email( $email );
+			$customer_args = array(
+				'description' => $first_name . ' ' . $last_name,
+				'email' => $email,
+				$stripe_token_type => $stripe_token
+			);
 
-			if ( ! $stripe_user ) {
+			$stripe_user = $this->customers->create( $customer_args );
+			$stripe_user_id = $stripe_user->id;
 
-				$customer_args = array(
-					'description' => $first_name . ' ' . $last_name,
-					'email' => $email,
-					$stripe_token_type => $stripe_token
-				);
+		} else {
 
-				$stripe_user = $this->customers->create( $customer_args );
-				$stripe_user_id = $stripe_user->id;
+			$stripe_user_id = $stripe_user->id;
 
-			} else {
-
-				$stripe_user_id = $stripe_user->id;
-
-			}
-
-		}	
+		}
 
 		// Check to see if there was an error in finding/creating a user
 		if ( ! $stripe_user_id )
@@ -205,6 +196,8 @@ class Stripe {
 		$charge = $this->charges->create( $charge_args );
 
 		// Create user in WordPress
+		$wp_user = get_user_by( 'email', $email );
+
 		if( ! $wp_user ) {
 			
 			$random_password = wp_generate_password( $length = 12, $include_standard_special_chars = false );
@@ -215,9 +208,15 @@ class Stripe {
 			$wp_user_id = $wp_user->ID;
 
 		}	
-
+		
 		// Update user meta to save Stripe User ID
-		update_post_meta( $wp_user_id, 'stripe_user_id', $stripe_user_id );
+		update_user_meta( $wp_user_id, 'stripe_user_id', $stripe_user_id );
+
+		foreach( $user_meta as $meta_key => $meta_value ) {
+
+			update_user_meta( $wp_user_id, $meta_key, $meta_value );			
+
+		}
 
 		if ( $charge ) {
 			wp_redirect( $redirect_to . '?payment_id=' . $charge->id );
